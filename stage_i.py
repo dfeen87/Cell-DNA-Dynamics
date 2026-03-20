@@ -12,6 +12,7 @@ Sections:
   8. CSV Output & Regime Statistics
 """
 
+import os
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -162,6 +163,9 @@ delta_phi = (
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. VISUALIZATION  (3-panel figure)
 # ─────────────────────────────────────────────────────────────────────────────
+script_dir = os.path.dirname(os.path.abspath(__file__))
+fig_path = os.path.join(script_dir, "stage_i_figure.png")
+
 fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
 
 # Panel 1 – raw signal
@@ -192,9 +196,9 @@ for ax in axes:
 axes[2].legend(loc="upper left", fontsize=8)
 
 plt.tight_layout()
-fig.savefig("stage_i_figure.png", dpi=150)
+fig.savefig(fig_path, dpi=300)
 plt.close(fig)
-print("Figure saved → stage_i_figure.png")
+print(f"Figure saved → {fig_path}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. NULL TESTS
