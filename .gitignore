@@ -1,7 +1,3 @@
-# Generated outputs (re-created by running stage_i.py)
-stage_i_figure.png
-stage_i_results.csv
-
 # Python
 __pycache__/
 *.py[cod]
