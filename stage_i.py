@@ -160,40 +160,36 @@ delta_phi = (
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. VISUALIZATION  (4-panel figure)
+# 6. VISUALIZATION  (3-panel figure)
 # ─────────────────────────────────────────────────────────────────────────────
-fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
+fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
 
 # Panel 1 – raw signal
 axes[0].plot(t, signal, lw=0.4, color="steelblue")
 axes[0].set_ylabel("s(t)")
 axes[0].set_title("Raw Signal")
 
-# Panel 2 – features E / I / C (normalised)
-axes[1].plot(t_feat, En, lw=0.6, label="E_n")
-axes[1].plot(t_feat, In, lw=0.6, label="I_n")
-axes[1].plot(t_feat, Cn, lw=0.6, label="C_n")
+# Panel 2 – features E(t) / I(t) / C(t) (normalised)
+axes[1].plot(t_feat, En, lw=0.6, label="E(t)")
+axes[1].plot(t_feat, In, lw=0.6, label="I(t)")
+axes[1].plot(t_feat, Cn, lw=0.6, label="C(t)")
 axes[1].set_ylabel("Normalised value")
-axes[1].set_title("Features (normalised)")
+axes[1].set_title("Features E(t), I(t), C(t)")
 axes[1].legend(loc="upper left", fontsize=8)
 
-# Panel 3 – ΔΦ
+# Panel 3 – ΔΦ(t)
 axes[2].plot(t_feat, delta_phi, lw=0.6, color="crimson")
+axes[2].set_xlabel("Time (s)")
 axes[2].set_ylabel("ΔΦ(t)")
-axes[2].set_title("Instability Functional ΔΦ")
-
-# Panel 4 – per-sample signal amplitude (overview / placeholder for overlay)
-axes[3].plot(t, signal, lw=0.4, color="grey", alpha=0.5)
-axes[3].set_xlabel("Time (s)")
-axes[3].set_ylabel("s(t)")
-axes[3].set_title("Signal overview (overlay)")
+axes[2].set_title("Instability Functional ΔΦ(t)")
 
 # Vertical regime lines on all panels
 for ax in axes:
-    ax.axvline(60, color="orange", lw=1.5, ls="--", label="t=60 s")
-    ax.axvline(120, color="red", lw=1.5, ls="--", label="t=120 s")
+    ax.axvline(60, color="orange", lw=1.5, ls="--", label="t = 60 s")
+    ax.axvline(120, color="red", lw=1.5, ls="--", label="t = 120 s")
 
-axes[0].legend(loc="upper right", fontsize=7)
+# Show regime-line legend only on the last panel to avoid clutter
+axes[2].legend(loc="upper left", fontsize=8)
 
 plt.tight_layout()
 fig.savefig("stage_i_figure.png", dpi=150)
