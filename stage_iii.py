@@ -1,4 +1,6 @@
+import os
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import hilbert, savgol_filter
 from scipy.stats import entropy
@@ -198,7 +200,7 @@ def compute_ablation(E_n, I_n, C_n):
 # ============================================================
 # 7. ONE-RUN VISUALIZATION
 # ============================================================
-def plot_one_run(t, x, y_regime, E_n, I_n, C_n, delta, cfg, title_suffix=""):
+def plot_one_run(t, x, y_regime, E_n, I_n, C_n, delta, cfg, title_suffix="", save_path=None):
     delta_s = savgol_filter(np.nan_to_num(delta, nan=0.0), cfg["smooth_window"], cfg["smooth_poly"])
 
     colors = {
@@ -252,7 +254,10 @@ def plot_one_run(t, x, y_regime, E_n, I_n, C_n, delta, cfg, title_suffix=""):
                     ax.axvspan(t[s], t[e], color=colors[regime_val], alpha=0.4)
 
     plt.tight_layout()
-    plt.show()
+    if save_path is not None:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Saved: {save_path}")
+    plt.close(fig)
 
 
 # ============================================================
@@ -302,9 +307,10 @@ def run_benchmark(cfg: dict):
 
         # plot first seed only
         if seed == 0:
+            save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stage_iii_seed0.png")
             plot_one_run(t[valid_mask], x[valid_mask], y_regime[valid_mask],
                          E_n[valid_mask], I_n[valid_mask], C_n[valid_mask], delta[valid_mask], cfg,
-                         title_suffix="(seed 0)")
+                         title_suffix="(seed 0)", save_path=save_path)
 
     return results
 
@@ -318,18 +324,73 @@ def summarize_results(results):
         "auc_EI", "auc_EC", "auc_IC",
         "mean_stable", "mean_pre", "mean_instability"
     ]
-    print("\n=== Multi-seed summary ===")
-    for k in keys:
-        vals = np.array([r[k] for r in results], dtype=float)
-        print(f"{k:18s}: mean={np.nanmean(vals):.3f}, std={np.nanstd(vals):.3f}")
 
-    # Check ordering
+    # ---- per-seed CSV rows ----
+    csv_rows = []
+    for r in results:
+        csv_rows.append({
+            "seed": r["seed"],
+            "threshold": r["threshold"],
+            "lead_time": r["lead_time"],
+            "auc_full": r["auc_full"],
+            "auc_E_only": r["auc_E_only"],
+            "auc_I_only": r["auc_I_only"],
+            "auc_C_only": r["auc_C_only"],
+            "auc_EI": r["auc_EI"],
+            "auc_EC": r["auc_EC"],
+            "auc_IC": r["auc_IC"],
+            "mean_stable": r["mean_stable"],
+            "mean_pre": r["mean_pre"],
+            "mean_instability": r["mean_instability"],
+        })
+
+    # ---- check ordering per seed ----
     stable = np.array([r["mean_stable"] for r in results], dtype=float)
     pre = np.array([r["mean_pre"] for r in results], dtype=float)
     instab = np.array([r["mean_instability"] for r in results], dtype=float)
-
     ordering_ok = np.mean((stable < pre) & (pre < instab))
+
+    # ---- summary row (mean ± std for each metric + ordering rate) ----
+    summary_row = {"seed": "mean ± std", "threshold": f"ordering_rate={100*ordering_ok:.1f}%"}
+    for k in keys:
+        vals = np.array([r[k] for r in results], dtype=float)
+        summary_row[k] = f"{np.nanmean(vals):.4f} ± {np.nanstd(vals):.4f}"
+    csv_rows.append(summary_row)
+
+    # ---- save CSV ----
+    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stage_iii_summary.csv")
+    df = pd.DataFrame(csv_rows)
+    col_order = ["seed", "threshold", "lead_time", "auc_full",
+                 "auc_E_only", "auc_I_only", "auc_C_only",
+                 "auc_EI", "auc_EC", "auc_IC",
+                 "mean_stable", "mean_pre", "mean_instability"]
+    df = df[col_order]
+    df.to_csv(csv_path, index=False)
+    print(f"Saved: {csv_path}")
+
+    # ---- print summary table ----
+    print("\n=== Multi-seed summary ===")
+    for k in keys:
+        vals = np.array([r[k] for r in results], dtype=float)
+        print(f"{k:22s}: mean={np.nanmean(vals):.4f}, std={np.nanstd(vals):.4f}")
+
+    # ---- print ordering rate ----
     print(f"\nOrdering stable < pre < instability holds in {100*ordering_ok:.1f}% of seeds.")
+
+    # ---- print AUC comparison ----
+    auc_keys = ["auc_full", "auc_E_only", "auc_I_only", "auc_C_only", "auc_EI", "auc_EC", "auc_IC"]
+    print("\n=== AUC comparison (mean ± std) ===")
+    for k in auc_keys:
+        vals = np.array([r[k] for r in results], dtype=float)
+        marker = " <-- full ΔΦ" if k == "auc_full" else ""
+        print(f"{k:22s}: {np.nanmean(vals):.4f} ± {np.nanstd(vals):.4f}{marker}")
+
+    full_auc = np.nanmean([r["auc_full"] for r in results])
+    e_auc = np.nanmean([r["auc_E_only"] for r in results])
+    i_auc = np.nanmean([r["auc_I_only"] for r in results])
+    c_auc = np.nanmean([r["auc_C_only"] for r in results])
+    outperforms = full_auc > e_auc and full_auc > i_auc and full_auc > c_auc
+    print(f"\nAUC_full > AUC_E_only, AUC_I_only, AUC_C_only: {outperforms}")
 
 
 # ============================================================
