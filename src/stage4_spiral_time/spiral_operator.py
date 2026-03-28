@@ -43,6 +43,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 import numpy as np
+from scipy.signal import savgol_filter
 
 # Allow running from the repository root without installing the package.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -86,6 +87,60 @@ class SpiralOperatorResult:
         self.phi_part = np.asarray(self.phi_part, dtype=float)
         self.chi_part = np.asarray(self.chi_part, dtype=float)
         self.t = np.asarray(self.t, dtype=float)
+
+def _sg_smooth(arr: np.ndarray, window_length: int = 11, polyorder: int = 3) -> np.ndarray:
+    """Apply a Savitzky–Golay smoothing filter to *arr*.
+
+    If the array is shorter than the minimum required window the original
+    array is returned unchanged.
+
+    Parameters
+    ----------
+    arr : np.ndarray, shape (T,)
+        1-D array to smooth.
+    window_length : int, optional
+        Length of the filter window.  Must be odd and ≥ ``polyorder + 2``.
+        Automatically reduced and made odd if the array is shorter.
+    polyorder : int, optional
+        Order of the polynomial used to fit the samples.  Defaults to 3.
+
+    Returns
+    -------
+    smoothed : np.ndarray, shape (T,)
+        Smoothed array with the same shape as *arr*.
+    """
+    T = len(arr)
+    # Ensure window_length is odd.
+    wl = window_length if window_length % 2 == 1 else window_length + 1
+    # Reduce window if necessary so that T ≥ wl > polyorder + 1.
+    wl = min(wl, T if T % 2 == 1 else T - 1)
+    if wl < polyorder + 2:
+        return arr.copy()
+    return savgol_filter(arr, window_length=wl, polyorder=polyorder)
+
+
+def robust_scale_component(arr: np.ndarray) -> np.ndarray:
+    """Robust-scale *arr* using median and IQR so no axis dominates.
+
+    The output is centred at the median and scaled by the interquartile
+    range (IQR = Q75 − Q25).  If the IQR is negligible the array is
+    returned centred but unscaled.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        1-D array to scale.
+
+    Returns
+    -------
+    scaled : np.ndarray
+        Array of the same shape as *arr* with median 0 and IQR ≈ 1.
+    """
+    med = np.median(arr)
+    iqr = np.percentile(arr, 75) - np.percentile(arr, 25)
+    if iqr < 1e-12:
+        return arr - med
+    return (arr - med) / iqr
 
 
 def _numerical_gradient(
@@ -137,6 +192,9 @@ def evaluate_spiral_operator(
     phi: np.ndarray | None = None,
     chi: np.ndarray | None = None,
     grad_eps: float = 1e-6,
+    smooth: bool = True,
+    smooth_window: int = 11,
+    smooth_polyorder: int = 3,
 ) -> SpiralOperatorResult:
     """Evaluate the spiral-time operator D_Ψ f over the ICE trajectory.
 
@@ -151,8 +209,11 @@ def evaluate_spiral_operator(
     vector on the ICE manifold.  At stationary points (|γ̇| = 0) the
     directional derivative defaults to zero.
 
-    All time derivatives are computed with ``numpy.gradient`` (second-order
-    central differences at interior points, first-order at boundaries).
+    When *smooth* is ``True`` (default), a Savitzky–Golay filter is
+    applied to the ICE trajectory components (E, I, C) and to φ(t) and
+    χ(t) before any time derivatives are computed.  This suppresses
+    noise-dominated derivative estimates without changing the underlying
+    mathematical definition of the operator.
 
     Parameters
     ----------
@@ -175,6 +236,14 @@ def evaluate_spiral_operator(
     grad_eps : float, optional
         Finite-difference step size for the numerical gradient of *f*.
         Default is 1e-6.
+    smooth : bool, optional
+        If ``True`` (default), apply Savitzky–Golay smoothing to the
+        trajectory and phase signals before computing derivatives.
+    smooth_window : int, optional
+        Window length for the Savitzky–Golay filter.  Must be odd.
+        Default is 11.
+    smooth_polyorder : int, optional
+        Polynomial order for the Savitzky–Golay filter.  Default is 3.
 
     Returns
     -------
@@ -234,6 +303,16 @@ def evaluate_spiral_operator(
         chi = compute_chi(phi, t)
     else:
         chi = np.asarray(chi, dtype=float)
+
+    # ── Optional Savitzky–Golay smoothing before derivatives ──────────────────
+    # Smoothing reduces noise-dominated derivatives without altering the
+    # mathematical definition of the operator (Eq. 12).
+    if smooth:
+        E = _sg_smooth(E, window_length=smooth_window, polyorder=smooth_polyorder)
+        I = _sg_smooth(I, window_length=smooth_window, polyorder=smooth_polyorder)
+        C = _sg_smooth(C, window_length=smooth_window, polyorder=smooth_polyorder)
+        phi = _sg_smooth(phi, window_length=smooth_window, polyorder=smooth_polyorder)
+        chi = _sg_smooth(chi, window_length=smooth_window, polyorder=smooth_polyorder)
 
     # ── Time derivatives φ̇(t) and χ̇(t) ──────────────────────────────────────
     phi_dot = np.gradient(phi, t)   # shape (T,)
