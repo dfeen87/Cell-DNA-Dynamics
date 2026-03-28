@@ -75,7 +75,7 @@ from __future__ import annotations
 import math
 import sys
 from dataclasses import dataclass, field
-from itertools import combinations, permutations
+from itertools import combinations
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -475,9 +475,6 @@ def _permutation_entropy(window: np.ndarray, order: int, delay: int) -> float:
     n = len(window)
     n_patterns = math.factorial(order)
     pattern_count: dict[tuple, int] = {}
-
-    all_perms = list(permutations(range(order)))
-    perm_index = {p: i for i, p in enumerate(all_perms)}  # noqa: F841
 
     n_sub = n - (order - 1) * delay
     if n_sub <= 0:
@@ -900,13 +897,13 @@ def map_dna_to_ice(
 def normalize_dna(
     observables: Mapping[str, np.ndarray],
     mapping: Mapping[str, str],
-    baseline_window: tuple,
+    baseline_window: tuple[int, int],
     *,
     min_std: float = 1e-8,
 ) -> ICEStateSeries:
     """Z-score normalise DNA-associated ICE features and return an ICEStateSeries.
 
-    Applies the z-score normalization described in Section 7 / Eq. (19–20) of
+    Applies the z-score normalization described in Section 7 / Eq. (19-20) of
     the manuscript:
 
         X̃_k(t) = (X_k(t) − μ_k) / σ_k          (k ∈ {E, I, C})
@@ -1041,7 +1038,7 @@ def normalize_dna(
 def dna_feature_mapping(
     data: Mapping[str, np.ndarray],
     feature_specs: Sequence[DNAFeatureSpec],
-    baseline_window: tuple,
+    baseline_window: tuple[int, int],
     *,
     min_std: float = 1e-8,
 ) -> ICEStateSeries:
