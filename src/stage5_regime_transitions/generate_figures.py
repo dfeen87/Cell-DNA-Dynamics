@@ -9,9 +9,9 @@ Generates two figures using the Stage 5 operators:
    - Horizontal dashed lines for θ_low and θ_high thresholds
 
 2. figures/stage5_regime_transitions/regime_segmentation.png
-   - ΔΦ(t) curve over time
-   - Shaded regions for each regime (stable, pre-instability, instability, recovery)
-   - Vertical markers at each regime transition
+   - Broad colored regime bands (stable / pre-instability / instability / recovery)
+   - Clean vertical boundary lines at regime transitions
+   - ΔΦ(t) overlaid as a single curve
 
 Reproducibility settings:
     seed = 0, DPI = 150, figure sizes as specified per figure below.
@@ -47,13 +47,14 @@ SEED = 0
 DPI = 150
 np.random.seed(SEED)
 
-# ── Consistent regime colour palette ─────────────────────────────────────────
+# ── Consistent regime colour palette (Stage 2 / Stage 3 compatible) ──────────
 REGIME_COLORS = {
     "stable":          "#2196F3",   # blue
     "pre-instability": "#FF9800",   # orange
     "instability":     "#F44336",   # red
     "recovery":        "#4CAF50",   # green
 }
+REGIME_ALPHA = 0.18
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _DATA_PATH = os.path.join(_REPO_ROOT, "data", "synthetic", "eic_timeseries.csv")
@@ -125,45 +126,44 @@ def plot_regime_segmentation(
     regime_labels,
     out_path: str,
 ) -> None:
-    """Plot ΔΦ(t) with shaded regime regions and transition markers and save."""
+    """Plot broad regime bands with ΔΦ(t) overlaid and transition markers."""
     intervals = regime_shading_intervals(regime_labels)
     transitions = extract_transition_events(regime_labels)
 
     fig, ax = plt.subplots(figsize=(14, 5))
 
-    # ── Shaded regime spans ───────────────────────────────────────────────────
+    # ── Broad colored regime bands ────────────────────────────────────────────
+    dt_half = (t[1] - t[0]) / 2
     for iv in intervals:
         t_start = t[iv.start]
-        # Use half-step extension at the right edge to avoid gaps
-        t_end = t[iv.stop - 1] + (t[1] - t[0]) / 2 if iv.stop < len(t) else t[-1]
+        t_end = t[iv.stop - 1] + dt_half if iv.stop < len(t) else t[-1] + dt_half
         ax.axvspan(
             t_start,
             t_end,
-            alpha=0.18,
+            alpha=REGIME_ALPHA,
             color=REGIME_COLORS.get(iv.regime, "#CCCCCC"),
             linewidth=0,
         )
 
-    # ── ΔΦ(t) curve ──────────────────────────────────────────────────────────
+    # ── Clean boundary lines at transitions ──────────────────────────────────
+    for ev in transitions:
+        ax.axvline(
+            t[ev.index],
+            color="#616161",
+            linewidth=0.8,
+            linestyle="--",
+            alpha=0.6,
+            zorder=3,
+        )
+
+    # ── ΔΦ(t) overlaid as a single curve ─────────────────────────────────────
     ax.plot(
         t, delta_phi,
         color="#212121",
-        linewidth=0.9,
-        zorder=3,
+        linewidth=1.0,
+        zorder=4,
         label=r"$\Delta\Phi(t)$",
     )
-
-    # ── Transition markers ────────────────────────────────────────────────────
-    for ev in transitions:
-        x_trans = t[ev.index]
-        ax.axvline(
-            x_trans,
-            color="#9C27B0",
-            linewidth=0.9,
-            linestyle=":",
-            alpha=0.8,
-            zorder=4,
-        )
 
     ax.set_xlabel("Time (s)", fontsize=11)
     ax.set_ylabel(r"$\Delta\Phi(t)$", fontsize=11)
@@ -173,33 +173,35 @@ def plot_regime_segmentation(
     )
 
     # ── Legend ────────────────────────────────────────────────────────────────
+    present_regimes = set(regime_labels)
     regime_patches = [
         Patch(
             facecolor=REGIME_COLORS[r],
-            alpha=0.5,
+            alpha=0.6,
             label=r.capitalize(),
         )
         for r in ["stable", "pre-instability", "instability", "recovery"]
-        if r in set(regime_labels)
+        if r in present_regimes
     ]
     transition_handle = Line2D(
         [0], [0],
-        color="#9C27B0",
-        linewidth=0.9,
-        linestyle=":",
-        alpha=0.8,
+        color="#616161",
+        linewidth=0.8,
+        linestyle="--",
+        alpha=0.6,
         label="Transition",
     )
     delta_phi_handle = Line2D(
         [0], [0],
         color="#212121",
-        linewidth=0.9,
+        linewidth=1.0,
         label=r"$\Delta\Phi(t)$",
     )
     ax.legend(
         handles=[delta_phi_handle] + regime_patches + [transition_handle],
         loc="upper right",
         fontsize=8,
+        framealpha=0.9,
     )
     ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.4)
 
@@ -220,8 +222,8 @@ def main() -> None:
     # ── 2. Compute ΔΦ(t) ─────────────────────────────────────────────────────
     delta_phi = compute_delta_phi(series)
 
-    # ── 3. Detect regimes ─────────────────────────────────────────────────────
-    regime_result = detect_regimes(delta_phi)
+    # ── 3. Detect regimes with minimum dwell-time stability (10 samples) ──────
+    regime_result = detect_regimes(delta_phi, min_dwell=10)
 
     # ── 4. Plot ΔΦ(t) with threshold lines ───────────────────────────────────
     plot_delta_phi_thresholds(
