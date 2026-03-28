@@ -617,7 +617,7 @@ def _validate_spec(spec: FeatureSpec, data: Mapping[str, np.ndarray]) -> None:
                 f"exactly 1 channel; got {n_ch}."
             )
     # Window size
-    if ft != "ratio_proxy" and ft != "direct_proxy":
+    if ft not in {"ratio_proxy", "direct_proxy"}:
         if spec.window_size < 2:
             raise ValueError(
                 f"FeatureSpec '{spec.name}': window_size must be ≥ 2 for "
