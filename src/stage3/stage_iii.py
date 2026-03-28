@@ -307,7 +307,8 @@ def run_benchmark(cfg: dict):
 
         # plot first seed only
         if seed == 0:
-            save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stage_iii_seed0.png")
+            save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "figures", "stage3", "stage_iii_seed0.png")
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
             plot_one_run(t[valid_mask], x[valid_mask], y_regime[valid_mask],
                          E_n[valid_mask], I_n[valid_mask], C_n[valid_mask], delta[valid_mask], cfg,
                          title_suffix="(seed 0)", save_path=save_path)
@@ -358,7 +359,8 @@ def summarize_results(results):
     csv_rows.append(summary_row)
 
     # ---- save CSV ----
-    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stage_iii_summary.csv")
+    csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "data", "stage3", "stage_iii_summary.csv")
+    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
     df = pd.DataFrame(csv_rows)
     col_order = ["seed", "threshold", "lead_time", "auc_full",
                  "auc_E_only", "auc_I_only", "auc_C_only",
