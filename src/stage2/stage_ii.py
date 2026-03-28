@@ -19,10 +19,10 @@ from scipy.signal import savgol_filter
 # ─────────────────────────────────────────────────────────────────────────────
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-INPUT_CSV   = os.path.join(SCRIPT_DIR, "stage_i_results.csv")
-OUTPUT_CSV  = os.path.join(SCRIPT_DIR, "stage_ii_segmentation.csv")
-OUTPUT_PNG  = os.path.join(SCRIPT_DIR, "stage_ii_regimes.png")
+REPO_ROOT   = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+INPUT_CSV   = os.path.join(REPO_ROOT, "data", "stage1", "stage_i_results.csv")
+OUTPUT_CSV  = os.path.join(REPO_ROOT, "data", "stage2", "stage_ii_segmentation.csv")
+OUTPUT_PNG  = os.path.join(REPO_ROOT, "figures", "stage2", "stage_ii_regimes.png")
 
 # Savitzky–Golay smoothing parameters
 SG_WINDOW  = 251   # must be odd and < number of data points
@@ -34,9 +34,9 @@ Q_HIGH = 0.75
 
 # Regime shading colours
 REGIME_COLORS = {
-    "stable":           "#2196F3",   # blue
-    "pre_instability":  "#FF9800",   # orange
-    "instability":      "#F44336",   # red
+    "stable":            "#2196F3",   # blue
+    "pre-instability":   "#FF9800",   # orange
+    "instability":       "#F44336",   # red
 }
 REGIME_ALPHA = 0.15
 
@@ -92,7 +92,7 @@ def compute_segmentation(df: pd.DataFrame) -> pd.DataFrame:
     # Assign regimes
     regimes = np.where(
         smooth_dp > q_high_val, "instability",
-        np.where(smooth_dp < q_low_val, "stable", "pre_instability")
+        np.where(smooth_dp < q_low_val, "stable", "pre-instability")
     )
 
     result = df[["t", "DeltaPhi", "E", "I", "C"]].copy()
@@ -107,6 +107,7 @@ def compute_segmentation(df: pd.DataFrame) -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────────────────────
 def save_results(result: pd.DataFrame, path: str = OUTPUT_CSV) -> None:
     """Save the segmentation table (without the internal smooth column)."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     out_cols = ["t", "regime", "DeltaPhi", "E", "I", "C"]
     result[out_cols].to_csv(path, index=False)
     print(f"CSV saved  → {path}  ({len(result)} rows)")
@@ -194,6 +195,7 @@ def plot_regimes(result: pd.DataFrame,
     fig.legend(handles=regime_patches, loc="lower center",
                ncol=3, fontsize=9, bbox_to_anchor=(0.5, 0.0))
 
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     plt.tight_layout(rect=[0, 0.04, 1, 1])
     fig.savefig(path, dpi=150)
     plt.close(fig)
@@ -212,7 +214,7 @@ def main():
     # Print regime distribution summary
     counts = result["regime"].value_counts()
     print("\n── Regime Distribution ──")
-    for regime in ["stable", "pre_instability", "instability"]:
+    for regime in ["stable", "pre-instability", "instability"]:
         n = counts.get(regime, 0)
         pct = 100 * n / len(result)
         print(f"  {regime:<20s}: {n:5d} points  ({pct:.1f} %)")

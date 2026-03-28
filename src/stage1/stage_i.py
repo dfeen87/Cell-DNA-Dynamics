@@ -123,7 +123,7 @@ C_raw = np.empty(n_windows)
 
 for k in range(n_windows):
     win = signal[k: k + W]
-    E_raw[k] = np.mean(win ** 2)
+    E_raw[k] = np.sqrt(np.mean(win ** 2))
     I_raw[k] = spectral_entropy(win)
     C_raw[k] = coherence_metric(win)
 
@@ -154,7 +154,7 @@ C_star = 0.0
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. INSTABILITY FUNCTIONAL ΔΦ(t)
 # ─────────────────────────────────────────────────────────────────────────────
-delta_phi = (
+delta_phi = np.sqrt(
     wE * (En - E_star) ** 2
     + wI * (In - I_star) ** 2
     + wC * (Cn - C_star) ** 2
@@ -163,8 +163,9 @@ delta_phi = (
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. VISUALIZATION  (3-panel figure)
 # ─────────────────────────────────────────────────────────────────────────────
-script_dir = os.path.dirname(os.path.abspath(__file__))
-fig_path = os.path.join(script_dir, "stage_i_figure.png")
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+fig_path = os.path.join(REPO_ROOT, "figures", "stage1", "stage_i_figure.png")
+os.makedirs(os.path.dirname(fig_path), exist_ok=True)
 
 fig, axes = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
 
@@ -212,7 +213,7 @@ def compute_delta_phi(sig):
     C_ = np.empty(nw)
     for k in range(nw):
         w = sig[k: k + W]
-        E_[k] = np.mean(w ** 2)
+        E_[k] = np.sqrt(np.mean(w ** 2))
         I_[k] = spectral_entropy(w)
         C_[k] = coherence_metric(w)
 
@@ -225,7 +226,7 @@ def compute_delta_phi(sig):
     In_ = (I_ - I_[bm].mean()) / sI
     Cn_ = (C_ - C_[bm].mean()) / sC
 
-    return En_ ** 2 + In_ ** 2 + Cn_ ** 2
+    return np.sqrt(En_ ** 2 + In_ ** 2 + Cn_ ** 2)
 
 
 def phase_randomize(sig, seed=0):
@@ -268,7 +269,8 @@ for label, null_sig in null_signals.items():
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. CSV OUTPUT & REGIME STATISTICS
 # ─────────────────────────────────────────────────────────────────────────────
-csv_path = "stage_i_results.csv"
+csv_path = os.path.join(REPO_ROOT, "data", "stage1", "stage_i_results.csv")
+os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 with open(csv_path, "w", newline="") as fh:
     writer = csv.writer(fh)
     writer.writerow(["time", "E", "I", "C", "delta_phi"])
