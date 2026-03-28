@@ -48,11 +48,77 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from src.core.models import RegimeLabels
 
 
+def _enforce_min_dwell(labels: np.ndarray, min_dwell: int) -> np.ndarray:
+    """Merge regime intervals shorter than *min_dwell* samples into neighbours.
+
+    Iteratively finds the first contiguous run whose length is less than
+    *min_dwell* and reassigns it to match the longer of its two adjacent runs
+    (left neighbour wins a tie).  The loop terminates once all runs meet the
+    minimum length requirement.
+
+    Parameters
+    ----------
+    labels : np.ndarray, shape (T,), dtype object
+        Per-time-point regime label array to stabilise in-place copy.
+    min_dwell : int
+        Minimum number of consecutive samples required to keep a regime run.
+        Values ≤ 1 disable the filter.
+
+    Returns
+    -------
+    np.ndarray
+        A new label array with all runs at least *min_dwell* samples long.
+    """
+    if min_dwell <= 1:
+        return labels.copy()
+
+    result = labels.copy()
+
+    while True:
+        # Build run-length encoding: list of [regime, start, stop].
+        runs: list[list] = []
+        cur = result[0]
+        start = 0
+        for i in range(1, len(result)):
+            if result[i] != cur:
+                runs.append([cur, start, i])
+                cur = result[i]
+                start = i
+        runs.append([cur, start, len(result)])
+
+        # Find the first run that is too short.
+        short_idx: int | None = None
+        for k, (_, s, e) in enumerate(runs):
+            if (e - s) < min_dwell:
+                short_idx = k
+                break
+
+        if short_idx is None:
+            break  # All runs satisfy the minimum dwell time.
+
+        k = short_idx
+        left_len = (runs[k - 1][2] - runs[k - 1][1]) if k > 0 else -1
+        right_len = (runs[k + 1][2] - runs[k + 1][1]) if k < len(runs) - 1 else -1
+
+        if left_len >= right_len and k > 0:
+            # Absorb into the left neighbour.
+            result[runs[k][1] : runs[k][2]] = runs[k - 1][0]
+        elif k < len(runs) - 1:
+            # Absorb into the right neighbour.
+            result[runs[k][1] : runs[k][2]] = runs[k + 1][0]
+        else:
+            # Single-run array; nothing to merge.
+            break
+
+    return result
+
+
 def detect_regimes(
     delta_phi: np.ndarray,
     q_low: float = 0.75,
     q_high: float = 0.90,
     detect_recovery: bool = True,
+    min_dwell: int = 10,
 ) -> RegimeLabels:
     """Segment ΔΦ(t) into regime labels following the manuscript's rules.
 
@@ -77,6 +143,14 @@ def detect_regimes(
     the system's return toward the reference stability region (Section 6:
     "cellular recovery trajectories").
 
+    Minimum dwell-time stabilisation (*min_dwell* > 1):
+    After the initial per-sample labelling and optional recovery detection,
+    any contiguous run of identical labels shorter than *min_dwell* samples
+    is merged into its longer adjacent run.  This prevents the classifier
+    from switching regimes on single-sample noise and ensures the
+    segmentation output contains broad, stable regime intervals rather than
+    rapid oscillations around threshold boundaries.
+
     Parameters
     ----------
     delta_phi : array_like, shape (T,)
@@ -93,6 +167,10 @@ def detect_regimes(
         Whether to apply the optional recovery-labelling post-processing
         step.  Set to ``False`` to obtain the three-regime version
         (stable / pre-instability / instability only).
+    min_dwell : int, default 10
+        Minimum number of consecutive samples required to retain a regime
+        run.  Any run shorter than this value is absorbed into its longer
+        neighbour.  Set to 1 to disable minimum-dwell-time stabilisation.
 
     Returns
     -------
@@ -167,6 +245,15 @@ def detect_regimes(
             post_instability = np.arange(first_instability + 1, len(labels))
             recovery_mask = labels[post_instability] == "stable"
             labels[post_instability[recovery_mask]] = "recovery"
+
+    # ------------------------------------------------------------------
+    # 4. Minimum dwell-time stabilisation.
+    #
+    #    Merge short regime runs to prevent the classifier from toggling
+    #    on single-sample threshold crossings due to measurement noise.
+    # ------------------------------------------------------------------
+    if min_dwell > 1:
+        labels = _enforce_min_dwell(labels, min_dwell)
 
     return RegimeLabels(
         labels=labels,
