@@ -2,15 +2,19 @@
 Stage 4 Figure Generation – Spiral-Time Embedding
 ===================================================
 
-Generates two figures using the Stage 4 operators:
+Generates two sets of figures using the Stage 4 operators:
 
-1. figures/stage4_spiral_time/phi_chi_curves.png
-   - Top subplot:    Adaptive phase φ(t) from compute_phi.py
-   - Bottom subplot: Memory component χ(t) from compute_chi.py
+Manuscript figures (cleaned, scaled):
+  figures/stage4_spiral_time/phi_chi_curves.png
+  figures/stage4_spiral_time/spiral_embedding.png
 
-2. figures/stage4_spiral_time/spiral_embedding.png
-   - 3-D trajectory of (real_part, phi_part, chi_part) from the
-     spiral-time operator D_Ψ evaluated on the ICE time series.
+Debug figures (raw, unclipped):
+  figures/stage4_spiral_time/debug/phi_chi_curves_debug.png
+  figures/stage4_spiral_time/debug/spiral_embedding_debug.png
+
+Additionally, the raw φ(t) and χ(t) arrays are saved to:
+  figures/stage4_spiral_time/debug/phi_raw.npy
+  figures/stage4_spiral_time/debug/chi_raw.npy
 
 Reproducibility settings:
     seed = 0, DPI = 150, figure size as specified per figure below.
@@ -33,9 +37,9 @@ _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 sys.path.insert(0, _REPO_ROOT)
 
 from src.core.models import ICEStateSeries
-from src.stage4_spiral_time.compute_phi import compute_phi
+from src.stage4_spiral_time.compute_phi import compute_phi, robust_clip_for_plot
 from src.stage4_spiral_time.compute_chi import compute_chi
-from src.stage4_spiral_time.spiral_operator import evaluate_spiral_operator
+from src.stage4_spiral_time.spiral_operator import evaluate_spiral_operator, robust_scale_component
 
 # ── Reproducibility ──────────────────────────────────────────────────────────
 SEED = 0
@@ -45,6 +49,7 @@ np.random.seed(SEED)
 # ── Paths ─────────────────────────────────────────────────────────────────────
 _DATA_PATH = os.path.join(_REPO_ROOT, "data", "synthetic", "eic_timeseries.csv")
 _FIG_DIR = os.path.join(_REPO_ROOT, "figures", "stage4_spiral_time")
+_DEBUG_DIR = os.path.join(_FIG_DIR, "debug")
 
 
 def _load_series(path: str) -> tuple[ICEStateSeries, np.ndarray]:
@@ -64,6 +69,7 @@ def plot_phi_chi_curves(
     phi: np.ndarray,
     chi: np.ndarray,
     out_path: str,
+    title_suffix: str = "",
 ) -> None:
     """Plot φ(t) and χ(t) on separate subplots and save."""
     fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
@@ -81,7 +87,10 @@ def plot_phi_chi_curves(
     axes[1].legend(loc="upper right", fontsize=10)
     axes[1].grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
 
-    fig.suptitle(r"Stage 4: $\varphi(t)$ and $\chi(t)$", fontsize=13, y=1.01)
+    suptitle = r"Stage 4: $\varphi(t)$ and $\chi(t)$"
+    if title_suffix:
+        suptitle += f" {title_suffix}"
+    fig.suptitle(suptitle, fontsize=13, y=1.01)
     fig.tight_layout()
     fig.savefig(out_path, dpi=DPI, bbox_inches="tight")
     plt.close(fig)
@@ -91,6 +100,8 @@ def plot_phi_chi_curves(
 def plot_spiral_embedding(
     result,
     out_path: str,
+    robust_scale: bool = True,
+    title_suffix: str = "",
 ) -> None:
     """Plot the 3-D spiral-time operator embedding and save.
 
@@ -101,25 +112,42 @@ def plot_spiral_embedding(
 
     Points are coloured by normalised time so the direction of travel
     along the spiral is immediately apparent.
+
+    Parameters
+    ----------
+    result : SpiralOperatorResult
+        Output of :func:`evaluate_spiral_operator`.
+    out_path : str
+        Destination file path.
+    robust_scale : bool, optional
+        If ``True`` (default), apply median/IQR robust scaling to each
+        axis so that no single component dominates the embedding.
+    title_suffix : str, optional
+        Appended to the figure title (e.g. ``"[debug]"``).
     """
     t_norm = (result.t - result.t.min()) / (result.t.max() - result.t.min() + 1e-15)
+
+    x = result.real_part
+    y = result.phi_part
+    z = result.chi_part
+
+    if robust_scale:
+        x = robust_scale_component(x)
+        y = robust_scale_component(y)
+        z = robust_scale_component(z)
 
     fig = plt.figure(figsize=(9, 7))
     ax = fig.add_subplot(111, projection="3d")
 
     sc = ax.scatter(
-        result.real_part,
-        result.phi_part,
-        result.chi_part,
+        x, y, z,
         c=t_norm,
         cmap="viridis",
         s=6,
         alpha=0.8,
     )
     ax.plot(
-        result.real_part,
-        result.phi_part,
-        result.chi_part,
+        x, y, z,
         color="grey",
         linewidth=0.4,
         alpha=0.4,
@@ -128,7 +156,10 @@ def plot_spiral_embedding(
     ax.set_xlabel(r"$\partial_t f$ (real)", fontsize=10, labelpad=6)
     ax.set_ylabel(r"$\dot{\varphi}\,(v_\varphi\cdot\nabla f)$", fontsize=10, labelpad=6)
     ax.set_zlabel(r"$\dot{\chi}\,(v_\chi\cdot\nabla f)$", fontsize=10, labelpad=6)
-    ax.set_title("Stage 4: Spiral-Time Operator Embedding", fontsize=12)
+    title = "Stage 4: Spiral-Time Operator Embedding"
+    if title_suffix:
+        title += f" {title_suffix}"
+    ax.set_title(title, fontsize=12)
 
     cbar = fig.colorbar(sc, ax=ax, pad=0.1, shrink=0.6)
     cbar.set_label("Normalised time", fontsize=9)
@@ -141,33 +172,68 @@ def plot_spiral_embedding(
 
 def main() -> None:
     os.makedirs(_FIG_DIR, exist_ok=True)
+    os.makedirs(_DEBUG_DIR, exist_ok=True)
 
     # ── 1. Load data ──────────────────────────────────────────────────────────
     series, t = _load_series(_DATA_PATH)
 
-    # ── 2. Compute φ(t) ───────────────────────────────────────────────────────
-    phi = compute_phi(series)
+    # ── 2. Compute φ(t) – save raw to debug ───────────────────────────────────
+    # lam chosen so that the memory length (~1/lam) is ~20% of the time span,
+    # long enough to capture regime transitions yet short enough to resolve them.
+    phi_raw = compute_phi(series, debug_dir=_DEBUG_DIR)
 
-    # ── 3. Compute χ(t) ───────────────────────────────────────────────────────
-    chi = compute_chi(phi, t, kernel="exponential", lam=1.0)
+    # ── 3. Compute χ(t) – save raw to debug, return standardised ──────────────
+    t_span = t[-1] - t[0]
+    lam = 5.0 / (t_span + 1e-12)   # memory length ≈ t_span / 5
+    chi_standardized = compute_chi(
+        phi_raw, t,
+        kernel="exponential",
+        lam=lam,
+        standardize=True,
+        debug_dir=_DEBUG_DIR,
+    )
 
-    # ── 4–5. Plot and save φ(t) / χ(t) ───────────────────────────────────────
+    # ── 4. Manuscript φ(t)/χ(t) curves (clipped φ, standardised χ) ───────────
+    phi_clipped = robust_clip_for_plot(phi_raw)
     plot_phi_chi_curves(
-        t, phi, chi,
+        t, phi_clipped, chi_standardized,
         out_path=os.path.join(_FIG_DIR, "phi_chi_curves.png"),
     )
 
-    # ── 6. Compute spiral-time embedding ─────────────────────────────────────
+    # ── 5. Debug φ(t)/χ(t) curves (raw, unclipped) ───────────────────────────
+    # Load the raw chi that was saved by compute_chi.
+    chi_raw = np.load(os.path.join(_DEBUG_DIR, "chi_raw.npy"))
+    plot_phi_chi_curves(
+        t, phi_raw, chi_raw,
+        out_path=os.path.join(_DEBUG_DIR, "phi_chi_curves_debug.png"),
+        title_suffix="[debug]",
+    )
+
+    # ── 6. Compute spiral-time embedding (uses smoothed derivatives) ──────────
     def f_observable(E: np.ndarray, I: np.ndarray, C: np.ndarray) -> np.ndarray:
         """L2-norm-squared of the ICE deviation vector."""
         return E ** 2 + I ** 2 + C ** 2
 
-    result = evaluate_spiral_operator(series, f_observable, t, phi=phi, chi=chi)
+    result = evaluate_spiral_operator(
+        series, f_observable, t,
+        phi=phi_clipped,
+        chi=chi_standardized,
+        smooth=True,
+    )
 
-    # ── 7–8. Plot and save embedding ─────────────────────────────────────────
+    # ── 7. Manuscript spiral embedding (robust-scaled axes) ───────────────────
     plot_spiral_embedding(
         result,
         out_path=os.path.join(_FIG_DIR, "spiral_embedding.png"),
+        robust_scale=True,
+    )
+
+    # ── 8. Debug spiral embedding (raw axes, no scaling) ─────────────────────
+    plot_spiral_embedding(
+        result,
+        out_path=os.path.join(_DEBUG_DIR, "spiral_embedding_debug.png"),
+        robust_scale=False,
+        title_suffix="[debug]",
     )
 
 

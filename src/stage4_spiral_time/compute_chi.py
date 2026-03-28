@@ -25,6 +25,15 @@ past (and present) values contribute, which preserves strict causality.
 
 For long time series the inner summation is implemented as a vectorised
 matrix–vector product, keeping memory usage at O(T²) for a length-T series.
+
+Numerical stability (Stage 4 cleanup)
+--------------------------------------
+The kernel is row-wise normalised so that each χ(t_n) is a proper weighted
+average of past φ values rather than an unnormalised sum.  After the
+convolution, χ(t) is standardised (zero mean, unit variance) so that the
+axis is on a stable scale for derivative computation and plotting.
+
+The raw (pre-standardisation) χ(t) is optionally saved to a debug directory.
 """
 
 from __future__ import annotations
@@ -53,6 +62,8 @@ def compute_chi(
     phi: np.ndarray,
     t: np.ndarray,
     kernel: KernelName | Callable[..., np.ndarray] = "exponential",
+    standardize: bool = True,
+    debug_dir: str | None = None,
     **kernel_kwargs: float,
 ) -> np.ndarray:
     """Compute the memory component χ(t) (Eq. 7 of the manuscript).
@@ -62,6 +73,12 @@ def compute_chi(
     The integral is evaluated as a discrete causal convolution over the
     supplied time grid *t*.  Strict causality is guaranteed: for each
     output index n only values φ[m] with t[m] ≤ t[n] are included.
+
+    The kernel is row-wise normalised so that χ(t_n) is a proper weighted
+    average of past φ values (the kernel weight sum equals 1 at each n).
+    After the convolution, χ(t) is standardised to zero mean and unit
+    variance when *standardize* is ``True`` (default), providing a stable
+    scale for derivative computation and plotting.
 
     Parameters
     ----------
@@ -75,6 +92,15 @@ def compute_chi(
         strings or any callable with signature ``K(s, **kernel_kwargs)``
         that accepts an array of non-negative lag values and returns an
         array of the same shape.  Defaults to ``"exponential"``.
+    standardize : bool, optional
+        If ``True`` (default), standardise χ(t) to zero mean and unit
+        variance after the convolution.  The raw values are saved to
+        *debug_dir* when provided.  Set to ``False`` only if you need
+        the raw convolution output.
+    debug_dir : str or None, optional
+        If provided, the raw (pre-standardisation) χ(t) array is saved as
+        ``chi_raw.npy`` in this directory.  The directory is created if it
+        does not exist.  Defaults to ``None`` (no saving).
     **kernel_kwargs
         Additional keyword arguments forwarded to the kernel function.
         For the built-in kernels:
@@ -90,6 +116,7 @@ def compute_chi(
     -------
     chi : np.ndarray, shape (T,)
         Memory component χ(t) evaluated at each time point.
+        Standardised (zero mean, unit std) when *standardize* is ``True``.
 
     Raises
     ------
@@ -174,7 +201,25 @@ def compute_chi(
         dt[-1] = t[-1] - t[-2]
         dt[1:-1] = (t[2:] - t[:-2]) / 2.0
 
-    # χ[n] = Σ_m K_matrix[n, m] · φ[m] · dt[m]
-    chi = K_matrix @ (phi * dt)  # shape (T,)
+    # ── Row-wise kernel normalisation ─────────────────────────────────────────
+    # Normalise each row so that Σ_m K_norm[n, m] * dt[m] = 1, making χ(t_n)
+    # a proper weighted average of past φ values.  This keeps χ bounded by
+    # the range of φ regardless of the kernel width or time-grid spacing.
+    row_norms = K_matrix @ dt          # shape (T,); integral of K up to t[n]
+    safe_norms = np.where(row_norms > 1e-12, row_norms, 1.0)
+    K_normalised = K_matrix / safe_norms[:, np.newaxis]
+
+    # χ[n] = Σ_m K_normalised[n, m] · φ[m] · dt[m]
+    chi = K_normalised @ (phi * dt)    # shape (T,)
+
+    # ── Optional debug save (raw, before standardisation) ─────────────────────
+    if debug_dir is not None:
+        os.makedirs(debug_dir, exist_ok=True)
+        np.save(os.path.join(debug_dir, "chi_raw.npy"), chi)
+
+    # ── Standardise χ(t) to zero mean, unit variance ──────────────────────────
+    if standardize:
+        chi_std = np.std(chi)
+        chi = (chi - np.mean(chi)) / (chi_std + 1e-12)
 
     return chi
