@@ -45,3 +45,61 @@ class ICEStateSeries:
                 "delta_E, delta_I, and delta_C must have the same shape; "
                 f"got {self.delta_E.shape}, {self.delta_I.shape}, {self.delta_C.shape}."
             )
+
+
+# Valid regime label strings (Section 5 of the manuscript).
+_REGIME_LABELS = frozenset({"stable", "pre-instability", "instability", "recovery"})
+
+
+@dataclass
+class RegimeLabels:
+    """Per-time-point regime assignments derived from the instability magnitude.
+
+    The four possible label values follow the regime taxonomy defined in
+    Section 5 of the manuscript:
+
+    - ``"stable"``          – ΔΦ(t) < θ_low; proximity to the reference
+                              stability region.
+    - ``"pre-instability"`` – θ_low ≤ ΔΦ(t) < θ_high; elevated sensitivity
+                              to perturbations (metastable in manuscript
+                              terminology).
+    - ``"instability"``     – ΔΦ(t) ≥ θ_high; sustained deviation from the
+                              reference regime.
+    - ``"recovery"``        – (optional) ΔΦ(t) < θ_low *after* the first
+                              instability epoch; the system is returning toward
+                              the stable reference region.
+
+    Attributes
+    ----------
+    labels : np.ndarray, shape (T,), dtype object
+        Per-time-point regime strings drawn from the set
+        ``{"stable", "pre-instability", "instability", "recovery"}``.
+    theta_low : float
+        Lower quantile threshold separating *stable* from *pre-instability*.
+        Derived empirically from the ΔΦ(t) series (manuscript Section 5).
+    theta_high : float
+        Upper quantile threshold separating *pre-instability* from
+        *instability*.  Derived empirically from the ΔΦ(t) series.
+    """
+
+    labels: np.ndarray
+    theta_low: float
+    theta_high: float
+
+    def __post_init__(self) -> None:
+        self.labels = np.asarray(self.labels, dtype=object)
+        if self.labels.ndim != 1:
+            raise ValueError(
+                f"labels must be a 1-D array; got shape {self.labels.shape}."
+            )
+        invalid = set(np.unique(self.labels)) - _REGIME_LABELS
+        if invalid:
+            raise ValueError(
+                f"labels contains invalid regime strings: {invalid}. "
+                f"Allowed values are {sorted(_REGIME_LABELS)}."
+            )
+        if not (0.0 <= self.theta_low <= self.theta_high):
+            raise ValueError(
+                f"Thresholds must satisfy 0 ≤ theta_low ≤ theta_high; "
+                f"got theta_low={self.theta_low}, theta_high={self.theta_high}."
+            )
