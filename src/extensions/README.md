@@ -1,0 +1,1 @@
+NOTE: This module belongs to the Stage 6/7 translational extension layer. It is not part of the validated Stages 1–5 pipeline and is not used in the manuscript results. Included for completeness and future development only.
