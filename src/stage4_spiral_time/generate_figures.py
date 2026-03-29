@@ -31,6 +31,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 – registers 3D projection
+from scipy.signal import savgol_filter
 
 # ── Allow running from repository root or from this file's directory ──────────
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -70,11 +71,28 @@ def plot_phi_chi_curves(
     chi: np.ndarray,
     out_path: str,
     title_suffix: str = "",
+    phi_smooth: np.ndarray | None = None,
 ) -> None:
-    """Plot φ(t) and χ(t) on separate subplots and save."""
+    """Plot φ(t) and χ(t) on separate subplots and save.
+
+    Parameters
+    ----------
+    phi_smooth : np.ndarray or None, optional
+        If provided, plot this visually-smoothed curve in the foreground
+        while drawing the raw *phi* as a faint background trace.  This is
+        used for the manuscript figure; the debug figure passes ``None`` so
+        only the raw curve is shown.
+    """
     fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
 
-    axes[0].plot(t, phi, color="#2563EB", linewidth=1.2, label=r"$\varphi(t)$")
+    if phi_smooth is not None:
+        # Manuscript mode: faint raw trace + bold smoothed overlay
+        axes[0].plot(t, phi, color="#93C5FD", linewidth=0.6, alpha=0.5,
+                     label=r"$\varphi(t)$ raw")
+        axes[0].plot(t, phi_smooth, color="#2563EB", linewidth=1.4,
+                     label=r"$\varphi(t)$ smoothed")
+    else:
+        axes[0].plot(t, phi, color="#2563EB", linewidth=1.2, label=r"$\varphi(t)$")
     axes[0].set_ylabel(r"$\varphi(t)$", fontsize=12)
     axes[0].set_title("Adaptive Phase", fontsize=12)
     axes[0].legend(loc="upper right", fontsize=10)
@@ -102,6 +120,7 @@ def plot_spiral_embedding(
     out_path: str,
     robust_scale: bool = True,
     title_suffix: str = "",
+    show_lines: bool = True,
 ) -> None:
     """Plot the 3-D spiral-time operator embedding and save.
 
@@ -124,6 +143,10 @@ def plot_spiral_embedding(
         axis so that no single component dominates the embedding.
     title_suffix : str, optional
         Appended to the figure title (e.g. ``"[debug]"``).
+    show_lines : bool, optional
+        If ``True`` (default), draw a grey line connecting consecutive
+        points.  Set to ``False`` for the manuscript figure to emphasise
+        the point-cloud colour gradient without visual clutter.
     """
     t_norm = (result.t - result.t.min()) / (result.t.max() - result.t.min() + 1e-15)
 
@@ -146,12 +169,13 @@ def plot_spiral_embedding(
         s=6,
         alpha=0.8,
     )
-    ax.plot(
-        x, y, z,
-        color="grey",
-        linewidth=0.4,
-        alpha=0.4,
-    )
+    if show_lines:
+        ax.plot(
+            x, y, z,
+            color="grey",
+            linewidth=0.4,
+            alpha=0.4,
+        )
 
     ax.set_xlabel(r"$\partial_t f$ (real)", fontsize=10, labelpad=6)
     ax.set_ylabel(r"$\dot{\varphi}\,(v_\varphi\cdot\nabla f)$", fontsize=10, labelpad=6)
@@ -193,11 +217,17 @@ def main() -> None:
         debug_dir=_DEBUG_DIR,
     )
 
-    # ── 4. Manuscript φ(t)/χ(t) curves (clipped φ, standardised χ) ───────────
+    # ── 4. Manuscript φ(t)/χ(t) curves (clipped φ, light SG smoothing) ──────────
     phi_clipped = robust_clip_for_plot(phi_raw)
+    # Light visual-only SG smoothing for the manuscript (window=7, polyorder=2).
+    # The raw phi_clipped curve is retained for the debug plot and all numerical
+    # computations; smoothing is strictly for manuscript readability.
+    _sg_wl = min(7, len(phi_clipped) if len(phi_clipped) % 2 == 1 else len(phi_clipped) - 1)
+    phi_smooth_for_plot = savgol_filter(phi_clipped, window_length=_sg_wl, polyorder=2)
     plot_phi_chi_curves(
         t, phi_clipped, chi_standardized,
         out_path=os.path.join(_FIG_DIR, "phi_chi_curves.png"),
+        phi_smooth=phi_smooth_for_plot,
     )
 
     # ── 5. Debug φ(t)/χ(t) curves (raw, unclipped) ───────────────────────────
@@ -221,19 +251,21 @@ def main() -> None:
         smooth=True,
     )
 
-    # ── 7. Manuscript spiral embedding (robust-scaled axes) ───────────────────
+    # ── 7. Manuscript spiral embedding (robust-scaled axes, no connecting lines) ─
     plot_spiral_embedding(
         result,
         out_path=os.path.join(_FIG_DIR, "spiral_embedding.png"),
         robust_scale=True,
+        show_lines=False,
     )
 
-    # ── 8. Debug spiral embedding (raw axes, no scaling) ─────────────────────
+    # ── 8. Debug spiral embedding (raw axes, no scaling, with connecting lines) ──
     plot_spiral_embedding(
         result,
         out_path=os.path.join(_DEBUG_DIR, "spiral_embedding_debug.png"),
         robust_scale=False,
         title_suffix="[debug]",
+        show_lines=True,
     )
 
 
