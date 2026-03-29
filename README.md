@@ -161,6 +161,8 @@ pip install -r requirements.txt
 
 ## Reproducing Manuscript Figures (Stages 1–5)
 
+The manuscript‑aligned workflow is organized modularly across Stages 1–5. Reproduction therefore proceeds via the stage‑specific scripts in src/stage1/ through src/stage5_regime_transitions/, together with the simulation utilities in src/simulation/ and the visualization scripts in src/viz/.
+
 All manuscript figures can be reproduced deterministically by running each stage script in order:
 
 ```bash
@@ -215,7 +217,7 @@ This separation ensures clarity for reviewers and prevents any misinterpretation
 
 ## Citation
 
-> **Note:** The Cell-DNA-Dynamics manuscript is currently in preparation. A full citation will be provided here upon publication. In the meantime, please refer to this repository directly if you use this framework.
+Krüger, M., & Feeney, D. (2026). *A Triadic Spiral-Time Framework for Cellular and DNA-Associated Dynamics: A Conservative Effective Modeling Proposal for Biological Stability Transitions.* Zenodo. https://doi.org/10.5281/zenodo.19318103
 
 Full BibTeX entries for referenced works are provided in [`docs/citations.bib`](docs/citations.bib).
 
