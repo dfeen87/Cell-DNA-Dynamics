@@ -30,6 +30,9 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
 
+# Use a clean sans-serif font throughout.
+matplotlib.rcParams["font.family"] = "DejaVu Sans"
+
 # ── Allow running from repository root or from this file's directory ──────────
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, _REPO_ROOT)
@@ -44,19 +47,20 @@ from src.stage5_regime_transitions.segmentation_utils import (
 
 # ── Reproducibility ──────────────────────────────────────────────────────────
 SEED = 0
-DPI       = 300   # manuscript / high-quality – raised from 150 for print clarity
+DPI       = 400   # manuscript / high-quality – 350-450 range for crisp print output
 DPI_DEBUG = 150   # debug / quick-inspect output
 np.random.seed(SEED)
 
 # ── Consistent regime colour palette (Stage 2 / Stage 3 compatible) ──────────
+# Colors are the original palette with ~12% saturation boost for vibrancy.
 REGIME_COLORS = {
-    "stable":          "#2196F3",   # blue
-    "pre-instability": "#FF9800",   # orange
-    "instability":     "#F44336",   # red
-    "recovery":        "#4CAF50",   # green
+    "stable":          "#1597ff",   # blue  (+12% sat)
+    "pre-instability": "#ff9800",   # orange (already max sat)
+    "instability":     "#ff3a2b",   # red   (+12% sat)
+    "recovery":        "#46b54b",   # green (+12% sat)
 }
-REGIME_ALPHA            = 0.13   # polished (manuscript) – reduced ~13% to avoid washout
-REGIME_ALPHA_UNPOLISHED = 0.18   # original value, kept for debug reproducibility
+REGIME_ALPHA            = 0.18   # polished (manuscript) – avoids washout
+REGIME_ALPHA_UNPOLISHED = 0.18   # debug – same value for reproducibility
 
 # Minimum contiguous-block length (samples) for a transition marker to be shown
 # in the polished figure.  Short-lived blocks within the same consolidated regime
@@ -156,13 +160,14 @@ def plot_regime_segmentation(
 
     # ── Visual parameters ─────────────────────────────────────────────────────
     if polished:
-        regime_alpha    = REGIME_ALPHA           # 0.13 – reduced to avoid washout
-        curve_lw        = 1.8                    # +0.3 thicker ΔΦ(t) for readability
-        trans_color     = "#9E9E9E"              # lighter gray
-        trans_lw        = 0.6                    # slightly thinner
-        trans_alpha     = 0.45
-        curve_aa        = False                  # crisp, no anti-alias blur at 300 DPI
-        trans_aa        = False
+        regime_alpha    = REGIME_ALPHA           # 0.18 – avoids washout
+        curve_lw        = 2.0                    # +0.2 thicker ΔΦ(t) for readability
+        trans_color     = "#AAAAAA"              # light gray per spec
+        trans_lw        = 0.6                    # thin line
+        trans_alpha     = 0.9
+        trans_dash      = (0, (4, 8))            # wider dash spacing for cleaner look
+        curve_aa        = True                   # antialiasing enabled
+        trans_aa        = True
         # Suppress transition markers for short-lived blocks (visual clutter).
         major_starts = {
             iv.start
@@ -176,6 +181,7 @@ def plot_regime_segmentation(
         trans_color         = "#616161"
         trans_lw            = 0.8
         trans_alpha         = 0.6
+        trans_dash          = "--"
         curve_aa            = True
         trans_aa            = True
         visible_transitions = transitions
@@ -201,7 +207,7 @@ def plot_regime_segmentation(
             t[ev.index],
             color=trans_color,
             linewidth=trans_lw,
-            linestyle="--",
+            linestyle=trans_dash,
             alpha=trans_alpha,
             antialiased=trans_aa,
             zorder=3,
@@ -210,19 +216,20 @@ def plot_regime_segmentation(
     # ── ΔΦ(t) overlaid as a single curve ─────────────────────────────────────
     ax.plot(
         t, delta_phi,
-        color="#212121",
+        color="#000000",
         linewidth=curve_lw,
         antialiased=curve_aa,
         zorder=4,
         label=r"$\Delta\Phi(t)$",
     )
 
-    ax.set_xlabel("Time (s)", fontsize=11)
-    ax.set_ylabel(r"$\Delta\Phi(t)$", fontsize=11)
+    ax.set_xlabel("Time (s)", fontsize=13)
+    ax.set_ylabel(r"$\Delta\Phi(t)$", fontsize=13)
     ax.set_title(
         r"Stage 5: Regime Segmentation of $\Delta\Phi(t)$",
-        fontsize=12,
+        fontsize=14,
     )
+    ax.tick_params(axis="both", labelsize=11)
 
     # ── Legend ────────────────────────────────────────────────────────────────
     present_regimes = set(regime_labels)
@@ -239,21 +246,22 @@ def plot_regime_segmentation(
         [0], [0],
         color=trans_color,
         linewidth=trans_lw,
-        linestyle="--",
-        alpha=trans_alpha,
+        linestyle=trans_dash,
+        alpha=1.0,
         label="Transition",
     )
     delta_phi_handle = Line2D(
         [0], [0],
-        color="#212121",
+        color="#000000",
         linewidth=curve_lw,
         label=r"$\Delta\Phi(t)$",
     )
     ax.legend(
         handles=[delta_phi_handle] + regime_patches + [transition_handle],
         loc="upper right",
-        fontsize=8,
-        framealpha=0.9,
+        fontsize=9,
+        framealpha=1.0,
+        edgecolor="#CCCCCC",
     )
     ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.4)
 
@@ -262,7 +270,7 @@ def plot_regime_segmentation(
     fig.savefig(out_path, dpi=save_dpi, bbox_inches="tight")
     print(f"Saved: {out_path}")
     for extra_path in (extra_out_paths or []):
-        fig.savefig(extra_path, bbox_inches="tight")
+        fig.savefig(extra_path, dpi=save_dpi, bbox_inches="tight")
         print(f"Saved: {extra_path}")
     plt.close(fig)
 
@@ -304,13 +312,16 @@ def main() -> None:
     # ── 6. Plot regime segmentation – polished (manuscript) ───────────────────
     _ms_png = os.path.join(_MANUSCRIPT_DIR, "regime_segmentation.png")
     _ms_pdf = os.path.join(_MANUSCRIPT_DIR, "regime_segmentation.pdf")
+    # Also write to the canonical figures/stage5_regime_transitions/ location.
+    _out_png = os.path.join(_FIG_DIR, "regime_segmentation.png")
+    _out_pdf = os.path.join(_FIG_DIR, "regime_segmentation.pdf")
     plot_regime_segmentation(
         t,
         delta_phi,
         regime_labels=regime_result.labels,
         out_path=_ms_png,
         polished=True,
-        extra_out_paths=[_ms_pdf],
+        extra_out_paths=[_ms_pdf, _out_png, _out_pdf],
     )
 
 
