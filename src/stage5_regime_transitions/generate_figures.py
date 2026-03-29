@@ -14,7 +14,7 @@ Generates two figures using the Stage 5 operators:
    - ΔΦ(t) overlaid as a single curve
 
 Reproducibility settings:
-    seed = 0, DPI = 150, figure sizes as specified per figure below.
+    seed = 0, DPI = 300 (manuscript) / 150 (debug), figure sizes as specified per figure below.
 """
 
 from __future__ import annotations
@@ -44,7 +44,8 @@ from src.stage5_regime_transitions.segmentation_utils import (
 
 # ── Reproducibility ──────────────────────────────────────────────────────────
 SEED = 0
-DPI = 150
+DPI       = 300   # manuscript / high-quality – raised from 150 for print clarity
+DPI_DEBUG = 150   # debug / quick-inspect output
 np.random.seed(SEED)
 
 # ── Consistent regime colour palette (Stage 2 / Stage 3 compatible) ──────────
@@ -54,7 +55,7 @@ REGIME_COLORS = {
     "instability":     "#F44336",   # red
     "recovery":        "#4CAF50",   # green
 }
-REGIME_ALPHA            = 0.15   # polished (manuscript) – slightly softer than original
+REGIME_ALPHA            = 0.13   # polished (manuscript) – reduced ~13% to avoid washout
 REGIME_ALPHA_UNPOLISHED = 0.18   # original value, kept for debug reproducibility
 
 # Minimum contiguous-block length (samples) for a transition marker to be shown
@@ -135,6 +136,7 @@ def plot_regime_segmentation(
     out_path: str,
     *,
     polished: bool = True,
+    extra_out_paths: list[str] | None = None,
 ) -> None:
     """Plot broad regime bands with ΔΦ(t) overlaid and transition markers.
 
@@ -146,17 +148,21 @@ def plot_regime_segmentation(
         transition lines, and suppression of short-lived transition markers.
         When *False* (debug output) the original visual parameters are used.
         Neither mode alters the underlying segmentation logic or thresholds.
+    extra_out_paths : list of str, optional
+        Additional output paths (e.g. PDF, SVG) to save alongside ``out_path``.
     """
     intervals   = regime_shading_intervals(regime_labels)
     transitions = extract_transition_events(regime_labels)
 
     # ── Visual parameters ─────────────────────────────────────────────────────
     if polished:
-        regime_alpha    = REGIME_ALPHA           # 0.15 – slightly softer bands
-        curve_lw        = 1.5                    # thicker ΔΦ(t) for readability
+        regime_alpha    = REGIME_ALPHA           # 0.13 – reduced to avoid washout
+        curve_lw        = 1.8                    # +0.3 thicker ΔΦ(t) for readability
         trans_color     = "#9E9E9E"              # lighter gray
         trans_lw        = 0.6                    # slightly thinner
         trans_alpha     = 0.45
+        curve_aa        = False                  # crisp, no anti-alias blur at 300 DPI
+        trans_aa        = False
         # Suppress transition markers for short-lived blocks (visual clutter).
         major_starts = {
             iv.start
@@ -170,6 +176,8 @@ def plot_regime_segmentation(
         trans_color         = "#616161"
         trans_lw            = 0.8
         trans_alpha         = 0.6
+        curve_aa            = True
+        trans_aa            = True
         visible_transitions = transitions
 
     fig, ax = plt.subplots(figsize=(14, 5))
@@ -195,6 +203,7 @@ def plot_regime_segmentation(
             linewidth=trans_lw,
             linestyle="--",
             alpha=trans_alpha,
+            antialiased=trans_aa,
             zorder=3,
         )
 
@@ -203,6 +212,7 @@ def plot_regime_segmentation(
         t, delta_phi,
         color="#212121",
         linewidth=curve_lw,
+        antialiased=curve_aa,
         zorder=4,
         label=r"$\Delta\Phi(t)$",
     )
@@ -248,9 +258,13 @@ def plot_regime_segmentation(
     ax.grid(True, linestyle="--", linewidth=0.4, alpha=0.4)
 
     fig.tight_layout()
-    fig.savefig(out_path, dpi=DPI, bbox_inches="tight")
-    plt.close(fig)
+    save_dpi = DPI if polished else DPI_DEBUG
+    fig.savefig(out_path, dpi=save_dpi, bbox_inches="tight")
     print(f"Saved: {out_path}")
+    for extra_path in (extra_out_paths or []):
+        fig.savefig(extra_path, bbox_inches="tight")
+        print(f"Saved: {extra_path}")
+    plt.close(fig)
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -288,12 +302,15 @@ def main() -> None:
     )
 
     # ── 6. Plot regime segmentation – polished (manuscript) ───────────────────
+    _ms_png = os.path.join(_MANUSCRIPT_DIR, "regime_segmentation.png")
+    _ms_pdf = os.path.join(_MANUSCRIPT_DIR, "regime_segmentation.pdf")
     plot_regime_segmentation(
         t,
         delta_phi,
         regime_labels=regime_result.labels,
-        out_path=os.path.join(_MANUSCRIPT_DIR, "regime_segmentation.png"),
+        out_path=_ms_png,
         polished=True,
+        extra_out_paths=[_ms_pdf],
     )
 
 
