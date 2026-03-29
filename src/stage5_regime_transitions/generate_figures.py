@@ -54,11 +54,19 @@ REGIME_COLORS = {
     "instability":     "#F44336",   # red
     "recovery":        "#4CAF50",   # green
 }
-REGIME_ALPHA = 0.18
+REGIME_ALPHA            = 0.15   # polished (manuscript) – slightly softer than original
+REGIME_ALPHA_UNPOLISHED = 0.18   # original value, kept for debug reproducibility
+
+# Minimum contiguous-block length (samples) for a transition marker to be shown
+# in the polished figure.  Short-lived blocks within the same consolidated regime
+# are suppressed.  Matches the min_dwell parameter used in detect_regimes.
+_MIN_TRANSITION_BLOCK = 30
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-_DATA_PATH = os.path.join(_REPO_ROOT, "data", "synthetic", "eic_timeseries.csv")
-_FIG_DIR = os.path.join(_REPO_ROOT, "figures", "stage5_regime_transitions")
+_DATA_PATH      = os.path.join(_REPO_ROOT, "data", "synthetic", "eic_timeseries.csv")
+_FIG_DIR        = os.path.join(_REPO_ROOT, "figures", "stage5_regime_transitions")
+_MANUSCRIPT_DIR = os.path.join(_FIG_DIR, "manuscript")
+_DEBUG_DIR      = os.path.join(_FIG_DIR, "debug")
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -125,10 +133,44 @@ def plot_regime_segmentation(
     delta_phi: np.ndarray,
     regime_labels,
     out_path: str,
+    *,
+    polished: bool = True,
 ) -> None:
-    """Plot broad regime bands with ΔΦ(t) overlaid and transition markers."""
-    intervals = regime_shading_intervals(regime_labels)
+    """Plot broad regime bands with ΔΦ(t) overlaid and transition markers.
+
+    Parameters
+    ----------
+    polished : bool, default True
+        When *True* (manuscript output) applies light visual refinements:
+        softer regime-band alpha, thicker ΔΦ(t) curve, lighter/thinner
+        transition lines, and suppression of short-lived transition markers.
+        When *False* (debug output) the original visual parameters are used.
+        Neither mode alters the underlying segmentation logic or thresholds.
+    """
+    intervals   = regime_shading_intervals(regime_labels)
     transitions = extract_transition_events(regime_labels)
+
+    # ── Visual parameters ─────────────────────────────────────────────────────
+    if polished:
+        regime_alpha    = REGIME_ALPHA           # 0.15 – slightly softer bands
+        curve_lw        = 1.5                    # thicker ΔΦ(t) for readability
+        trans_color     = "#9E9E9E"              # lighter gray
+        trans_lw        = 0.6                    # slightly thinner
+        trans_alpha     = 0.45
+        # Suppress transition markers for short-lived blocks (visual clutter).
+        major_starts = {
+            iv.start
+            for iv in intervals
+            if (iv.stop - iv.start) >= _MIN_TRANSITION_BLOCK and iv.start > 0
+        }
+        visible_transitions = [ev for ev in transitions if ev.index in major_starts]
+    else:
+        regime_alpha        = REGIME_ALPHA_UNPOLISHED   # 0.18 – original
+        curve_lw            = 1.0
+        trans_color         = "#616161"
+        trans_lw            = 0.8
+        trans_alpha         = 0.6
+        visible_transitions = transitions
 
     fig, ax = plt.subplots(figsize=(14, 5))
 
@@ -140,19 +182,19 @@ def plot_regime_segmentation(
         ax.axvspan(
             t_start,
             t_end,
-            alpha=REGIME_ALPHA,
+            alpha=regime_alpha,
             color=REGIME_COLORS.get(iv.regime, "#CCCCCC"),
             linewidth=0,
         )
 
-    # ── Clean boundary lines at transitions ──────────────────────────────────
-    for ev in transitions:
+    # ── Boundary lines at (major) transitions ─────────────────────────────────
+    for ev in visible_transitions:
         ax.axvline(
             t[ev.index],
-            color="#616161",
-            linewidth=0.8,
+            color=trans_color,
+            linewidth=trans_lw,
             linestyle="--",
-            alpha=0.6,
+            alpha=trans_alpha,
             zorder=3,
         )
 
@@ -160,7 +202,7 @@ def plot_regime_segmentation(
     ax.plot(
         t, delta_phi,
         color="#212121",
-        linewidth=1.0,
+        linewidth=curve_lw,
         zorder=4,
         label=r"$\Delta\Phi(t)$",
     )
@@ -185,16 +227,16 @@ def plot_regime_segmentation(
     ]
     transition_handle = Line2D(
         [0], [0],
-        color="#616161",
-        linewidth=0.8,
+        color=trans_color,
+        linewidth=trans_lw,
         linestyle="--",
-        alpha=0.6,
+        alpha=trans_alpha,
         label="Transition",
     )
     delta_phi_handle = Line2D(
         [0], [0],
         color="#212121",
-        linewidth=1.0,
+        linewidth=curve_lw,
         label=r"$\Delta\Phi(t)$",
     )
     ax.legend(
@@ -214,7 +256,9 @@ def plot_regime_segmentation(
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
-    os.makedirs(_FIG_DIR, exist_ok=True)
+    os.makedirs(_FIG_DIR,        exist_ok=True)
+    os.makedirs(_MANUSCRIPT_DIR, exist_ok=True)
+    os.makedirs(_DEBUG_DIR,      exist_ok=True)
 
     # ── 1. Load data ──────────────────────────────────────────────────────────
     series, t = _load_series(_DATA_PATH)
@@ -234,12 +278,22 @@ def main() -> None:
         out_path=os.path.join(_FIG_DIR, "delta_phi_thresholds.png"),
     )
 
-    # ── 5. Plot regime segmentation ───────────────────────────────────────────
+    # ── 5. Plot regime segmentation – unpolished (debug, for reproducibility) ─
     plot_regime_segmentation(
         t,
         delta_phi,
         regime_labels=regime_result.labels,
-        out_path=os.path.join(_FIG_DIR, "regime_segmentation.png"),
+        out_path=os.path.join(_DEBUG_DIR, "regime_segmentation_unpolished.png"),
+        polished=False,
+    )
+
+    # ── 6. Plot regime segmentation – polished (manuscript) ───────────────────
+    plot_regime_segmentation(
+        t,
+        delta_phi,
+        regime_labels=regime_result.labels,
+        out_path=os.path.join(_MANUSCRIPT_DIR, "regime_segmentation.png"),
+        polished=True,
     )
 
 
