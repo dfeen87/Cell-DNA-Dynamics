@@ -222,8 +222,8 @@ def main() -> None:
     # ── 2. Compute ΔΦ(t) ─────────────────────────────────────────────────────
     delta_phi = compute_delta_phi(series)
 
-    # ── 3. Detect regimes with minimum dwell-time stability (10 samples) ──────
-    regime_result = detect_regimes(delta_phi, min_dwell=10)
+    # ── 3. Detect regimes – hysteresis + 30-sample minimum dwell time ─────────
+    regime_result = detect_regimes(delta_phi, min_dwell=30)
 
     # ── 4. Plot ΔΦ(t) with threshold lines ───────────────────────────────────
     plot_delta_phi_thresholds(

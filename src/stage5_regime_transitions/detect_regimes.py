@@ -118,7 +118,8 @@ def detect_regimes(
     q_low: float = 0.75,
     q_high: float = 0.90,
     detect_recovery: bool = True,
-    min_dwell: int = 10,
+    min_dwell: int = 30,
+    hysteresis: float = 0.05,
 ) -> RegimeLabels:
     """Segment ΔΦ(t) into regime labels following the manuscript's rules.
 
@@ -136,6 +137,21 @@ def detect_regimes(
     - ``"pre-instability"`` if θ_low ≤ ΔΦ(t) < θ_high
     - ``"instability"``     if ΔΦ(t) ≥ θ_high
 
+    Hysteresis (*hysteresis* > 0):
+    To suppress rapid oscillations when ΔΦ(t) hovers near a boundary, the
+    classifier uses offset exit thresholds.  The *enter* threshold for each
+    regime is the unmodified quantile value; the *exit* threshold is lowered
+    by a fraction *hysteresis* of the inter-threshold range
+    (θ_high − θ_low):
+
+    - The classifier leaves ``"pre-instability"`` back to ``"stable"`` only
+      when ΔΦ(t) < θ_low − δ  (δ = (θ_high − θ_low) × hysteresis).
+    - The classifier leaves ``"instability"`` back to ``"pre-instability"``
+      only when ΔΦ(t) < θ_high − δ.
+
+    This prevents boundary-hovering signals from generating spurious
+    short-lived regime flips (label jitter).
+
     Optional recovery detection (when *detect_recovery* is ``True``):
     after the first time point at which ``"instability"`` is assigned,
     any subsequent time point whose raw label would be ``"stable"``
@@ -144,12 +160,11 @@ def detect_regimes(
     "cellular recovery trajectories").
 
     Minimum dwell-time stabilisation (*min_dwell* > 1):
-    After the initial per-sample labelling and optional recovery detection,
-    any contiguous run of identical labels shorter than *min_dwell* samples
-    is merged into its longer adjacent run.  This prevents the classifier
-    from switching regimes on single-sample noise and ensures the
-    segmentation output contains broad, stable regime intervals rather than
-    rapid oscillations around threshold boundaries.
+    After hysteresis labelling and optional recovery detection, any
+    contiguous run of identical labels shorter than *min_dwell* samples is
+    merged into its longer adjacent run.  This ensures the segmentation
+    output contains broad, stable regime bands rather than rapid
+    oscillations around threshold boundaries.
 
     Parameters
     ----------
@@ -167,10 +182,15 @@ def detect_regimes(
         Whether to apply the optional recovery-labelling post-processing
         step.  Set to ``False`` to obtain the three-regime version
         (stable / pre-instability / instability only).
-    min_dwell : int, default 10
+    min_dwell : int, default 30
         Minimum number of consecutive samples required to retain a regime
         run.  Any run shorter than this value is absorbed into its longer
         neighbour.  Set to 1 to disable minimum-dwell-time stabilisation.
+    hysteresis : float, default 0.05
+        Hysteresis fraction applied to exit thresholds to suppress label
+        jitter near regime boundaries.  The exit threshold for each
+        boundary is offset downward by ``hysteresis × (θ_high − θ_low)``.
+        Set to 0.0 to disable hysteresis.
 
     Returns
     -------
@@ -218,16 +238,48 @@ def detect_regimes(
     theta_high = float(np.quantile(delta_phi, q_high))
 
     # ------------------------------------------------------------------
-    # 2. Assign initial three-regime labels element-wise.
+    # 2. Assign regime labels via a stateful hysteresis scan.
     #
-    #    Stable:          ΔΦ(t) < θ_low       (proximity to reference)
-    #    Pre-instability: θ_low ≤ ΔΦ(t) < θ_high  (metastable, elevated)
-    #    Instability:     ΔΦ(t) ≥ θ_high      (sustained deviation)
+    #    Enter thresholds match the unmodified quantile values.
+    #    Exit thresholds are offset downward by a fraction of the
+    #    inter-threshold range to prevent boundary hovering from generating
+    #    spurious short-lived regime flips (label jitter).
+    #
+    #    Stable:          ΔΦ(t) < θ_low       (enter)
+    #                     ΔΦ(t) < θ_low_exit  (exit pre-instability)
+    #    Pre-instability: θ_low ≤ ΔΦ(t)       (enter from stable)
+    #                     θ_high_exit ≤ ΔΦ(t) (remain after leaving instability)
+    #    Instability:     ΔΦ(t) ≥ θ_high      (enter)
     # ------------------------------------------------------------------
+    delta_band = (theta_high - theta_low) * float(hysteresis)
+    theta_low_exit = theta_low - delta_band    # exit pre-instability → stable
+    theta_high_exit = theta_high - delta_band  # exit instability → pre-instability
+
     labels = np.empty(delta_phi.shape, dtype=object)
-    labels[delta_phi < theta_low] = "stable"
-    labels[(delta_phi >= theta_low) & (delta_phi < theta_high)] = "pre-instability"
-    labels[delta_phi >= theta_high] = "instability"
+
+    # Initialise state from the first sample (no hysteresis on entry).
+    if delta_phi[0] >= theta_high:
+        state: str = "instability"
+    elif delta_phi[0] >= theta_low:
+        state = "pre-instability"
+    else:
+        state = "stable"
+
+    for i, dp in enumerate(delta_phi):
+        if state == "stable":
+            if dp >= theta_high:
+                state = "instability"
+            elif dp >= theta_low:
+                state = "pre-instability"
+        elif state == "pre-instability":
+            if dp >= theta_high:
+                state = "instability"
+            elif dp < theta_low_exit:
+                state = "stable"
+        else:  # state == "instability"
+            if dp < theta_high_exit:
+                state = "pre-instability"
+        labels[i] = state
 
     # ------------------------------------------------------------------
     # 3. Optional recovery detection (Section 6: "cellular recovery
