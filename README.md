@@ -44,21 +44,103 @@ The framework is designed for clarity, reproducibility, and scientific transpare
 
 ```text
 Cell-DNA-Dynamics/
-├── src/
-│   ├── stage1/        # Normalization and preprocessing
-│   ├── stage2/        # ICE computation
-│   ├── stage3/        # ΔΦ instability metrics
-│   ├── stage4/        # Embedding + manuscript-grade visualizations
-│   ├── stage5/        # Regime segmentation and final outputs
-│   └── extensions/    # Stage 6–7 conceptual layers (not validated)
+├── data/
+│   ├── stage1/
+│   │   └── stage_i_results.csv
+│   ├── stage2/
+│   │   └── stage_ii_segmentation.csv
+│   ├── stage3/
+│   │   └── stage_iii_summary.csv
+│   ├── synthetic/
+│   ├── null_tests/
+│   │   ├── shuffled.csv
+│   │   ├── stable_control.csv
+│   │   ├── surrogate.csv
+│   │   ├── delta_phi.csv
+│   │   ├── eic_timeseries.csv
+│   │   └── regimes.csv
+│   └── README.md
+│
+├── docs/
+│   ├── PAPER.md
+│   └── citations.bib
 │
 ├── figures/
-│   ├── stage1-5/      # Manuscript figures
-│   └── extensions/    # Placeholder figures for Stage 6–7
+│   ├── final/
+│   │   └── figure_8_null_comparison.png
+│   ├── simulations/
+│   │   ├── ice_trajectory.png
+│   │   ├── null_tests_comparison.png
+│   │   ├── table3_metrics.csv
+│   │   └── timeseries_eic_delta_phi.png
+│   ├── stage1/
+│   │   └── stage_i_figure.png
+│   ├── stage2/
+│   │   └── stage_ii_regimes.png
+│   ├── stage3/
+│   │   └── stage_iii_seed0.png
+│   ├── stage4_spiral_time/
+│   │   ├── phi_chi_curves.png
+│   │   └── spiral_embedding.png
+│   ├── stage5_regime_transitions/
+│   │   ├── delta_phi_thresholds.png
+│   │   └── regime_segmentation.png
+│   └── extensions/
+│       ├── stage6_cellular/
+│       │   ├── cellular_mapping.png
+│       │   └── cellular_regimes.png
+│       └── stage7_dna/
+│           ├── dna_mapping.png
+│           └── dna_regimes.png
 │
-├── PAPER.md           # Manuscript text
-├── citations.bib      # References used in the manuscript
-└── README.md          # This file
+├── src/
+│   ├── core/
+│   │   ├── models.py
+│   │   └── utils.py
+│   ├── extensions/
+│   │   ├── stage6_cellular/
+│   │   │   ├── cellular_pipeline.py
+│   │   │   ├── map_to_ice.py
+│   │   │   └── normalize_cellular.py
+│   │   └── stage7_dna/
+│   │       ├── chromatin_fret_utils.py
+│   │       ├── dna_feature_mapping.py
+│   │       └── dna_pipeline.py
+│   ├── simulation/
+│   │   ├── generate_synthetic.py
+│   │   ├── metrics.py
+│   │   ├── null_tests.py
+│   │   └── table3_utils.py
+│   ├── stage1/
+│   │   └── stage_i.py
+│   ├── stage2/
+│   │   └── stage_ii.py
+│   ├── stage3/
+│   │   └── stage_iii.py
+│   ├── stage4_spiral_time/
+│   │   ├── compute_chi.py
+│   │   ├── compute_phi.py
+│   │   ├── generate_figures.py
+│   │   ├── memory_kernel.py
+│   │   └── spiral_operator.py
+│   ├── stage5_regime_transitions/
+│   │   ├── compute_delta_phi.py
+│   │   ├── detect_regimes.py
+│   │   ├── generate_figures.py
+│   │   └── segmentation_utils.py
+│   └── viz/
+│       ├── generate_figure_8.py
+│       ├── plot_ice.py
+│       ├── plot_null_tests.py
+│       ├── plot_regimes.py
+│       └── plot_timeseries.py
+│
+├── VALIDATION_ANALYSIS.md
+├── requirements.txt
+├── LICENSE
+├── .gitignore
+└── README.md
+
 ```
 
 ---
