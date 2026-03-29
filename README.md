@@ -161,10 +161,14 @@ pip install -r requirements.txt
 
 ## Reproducing Manuscript Figures (Stages 1–5)
 
-All manuscript figures can be reproduced deterministically by running:
+All manuscript figures can be reproduced deterministically by running each stage script in order:
 
 ```bash
-python src/run_pipeline.py
+python src/stage1/stage_i.py
+python src/stage2/stage_ii.py
+python src/stage3/stage_iii.py
+python src/stage4_spiral_time/generate_figures.py
+python src/stage5_regime_transitions/generate_figures.py
 ```
 
 The pipeline generates the following outputs:
@@ -174,7 +178,17 @@ The pipeline generates the following outputs:
 - Spiral embeddings
 - Regime segmentation plots
 
-All outputs are saved to `figures/stage1-5/` and correspond to the **exact figures** used in the manuscript.
+Outputs are saved to the corresponding stage subdirectories under `figures/`:
+
+| Stage | Output directory |
+|-------|-----------------|
+| 1 | `figures/stage1/` |
+| 2 | `figures/stage2/` |
+| 3 | `figures/stage3/` |
+| 4 | `figures/stage4_spiral_time/` |
+| 5 | `figures/stage5_regime_transitions/` |
+
+These outputs correspond to the **exact figures** used in the manuscript.
 
 ---
 
@@ -201,18 +215,9 @@ This separation ensures clarity for reviewers and prevents any misinterpretation
 
 ## Citation
 
-If you use this framework, please cite the manuscript:
+> **Note:** The Cell-DNA-Dynamics manuscript is currently in preparation. A full citation will be provided here upon publication. In the meantime, please refer to this repository directly if you use this framework.
 
-```bibtex
-@article{kruger2026triadic,
-  author  = {Krüger, M. and Wende, M. T. and Feeney, D.},
-  title   = {Information-Theoretic Modeling of Neural Coherence via
-             Triadic Spiral-Time Dynamics: A Framework for Neurodynamic Collapse},
-  year    = {2026}
-}
-```
-
-Full BibTeX entries are provided in [`citations.bib`](citations.bib).
+Full BibTeX entries for referenced works are provided in [`docs/citations.bib`](docs/citations.bib).
 
 ---
 
