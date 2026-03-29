@@ -40,7 +40,13 @@ _COLORS = {
     "stable":       "#2E7D32",   # deep green — stable control
 }
 
-_LINEWIDTH = 1.6
+# Observed curve is drawn thick and fully opaque to stand out clearly.
+# Null curves are deliberately thinner and semi-transparent to reduce clutter.
+_LW_OBSERVED = 2.8   # prominent
+_LW_NULL     = 1.1   # unobtrusive
+
+_ALPHA_SHUFFLED  = 0.45   # shuffled-time null – extra subdued (can have large swings)
+_ALPHA_NULL      = 0.60   # other null curves
 
 
 def generate_figure_8(seed: int = 0) -> str:
@@ -77,14 +83,17 @@ def generate_figure_8(seed: int = 0) -> str:
     # ------------------------------------------------------------------
     fig, ax = plt.subplots(figsize=(12, 4))
 
-    ax.plot(t, observed,  lw=_LINEWIDTH, color=_COLORS["observed"],
+    # Null curves drawn first (behind), thin and semi-transparent to reduce clutter.
+    ax.plot(t, shuffled,  lw=_LW_NULL, color=_COLORS["shuffled"],
+            label="Shuffled-time null",      zorder=2, alpha=_ALPHA_SHUFFLED)
+    ax.plot(t, surrogate, lw=_LW_NULL, color=_COLORS["surrogate"],
+            label="Phase-randomized null",   zorder=2, alpha=_ALPHA_NULL)
+    ax.plot(t, control,   lw=_LW_NULL, color=_COLORS["stable"],
+            label="Stable control",          zorder=2, alpha=_ALPHA_NULL)
+
+    # Observed curve drawn last (on top), thick and fully opaque for prominence.
+    ax.plot(t, observed,  lw=_LW_OBSERVED, color=_COLORS["observed"],
             label="Observed",                zorder=4)
-    ax.plot(t, shuffled,  lw=_LINEWIDTH, color=_COLORS["shuffled"],
-            label="Shuffled-time null",      zorder=3, alpha=0.85)
-    ax.plot(t, surrogate, lw=_LINEWIDTH, color=_COLORS["surrogate"],
-            label="Phase-randomized null",   zorder=3, alpha=0.85)
-    ax.plot(t, control,   lw=_LINEWIDTH, color=_COLORS["stable"],
-            label="Stable control",          zorder=2, alpha=0.85)
 
     ax.set_xlabel("Time (s)", fontsize=12)
     ax.set_ylabel("ΔΦ(t)", fontsize=12)
@@ -92,6 +101,10 @@ def generate_figure_8(seed: int = 0) -> str:
     ax.legend(loc="upper right", fontsize=10, framealpha=0.9)
     ax.tick_params(labelsize=10)
     ax.set_xlim(t[0], t[-1])
+
+    # Clip the y-axis to a range anchored on the observed signal so that
+    # high-amplitude shuffled-time swings do not compress the rest of the plot.
+    ax.set_ylim(bottom=0, top=np.max(observed) * 1.35)
 
     plt.tight_layout()
 
