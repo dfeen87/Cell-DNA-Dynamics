@@ -192,6 +192,8 @@ Outputs are saved to the corresponding stage subdirectories under `figures/`:
 
 These outputs correspond to the **exact figures** used in the manuscript.
 
+> **Note:** The final conceptual figures used in the manuscript are rendered directly in LaTeX/TikZ. The placeholder files in `figures/simulations/` are not part of the validated numerical output set.
+
 ---
 
 ## Extensions: Stage 6 (Cellular) & Stage 7 (DNA‑Associated)
