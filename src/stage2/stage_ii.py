@@ -66,7 +66,7 @@ def compute_segmentation(df: pd.DataFrame) -> pd.DataFrame:
     Smooth ΔΦ(t) with a Savitzky–Golay filter, compute 0.25 / 0.75 quantile
     thresholds, and assign each time-point to one of three regimes:
       - stable          : smoothed ΔΦ < Q25
-      - pre_instability : Q25 ≤ smoothed ΔΦ ≤ Q75
+      - pre-instability : Q25 ≤ smoothed ΔΦ ≤ Q75
       - instability     : smoothed ΔΦ > Q75
     """
     raw_dp = df["DeltaPhi"].values
@@ -187,7 +187,7 @@ def plot_regimes(result: pd.DataFrame,
     regime_patches = [
         Patch(facecolor=REGIME_COLORS["stable"],
               alpha=0.4, label="Stable"),
-        Patch(facecolor=REGIME_COLORS["pre_instability"],
+        Patch(facecolor=REGIME_COLORS["pre-instability"],
               alpha=0.4, label="Pre-instability"),
         Patch(facecolor=REGIME_COLORS["instability"],
               alpha=0.4, label="Instability"),
